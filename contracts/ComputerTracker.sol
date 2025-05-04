@@ -10,7 +10,7 @@ contract ComputerTracker {
     // uint256 public constant MAX_COMPUTERS = 1000;
 
     // Eventos
-    event ComputerTracked(string indexed numSerie, uint256 timestamp);
+    event ComputerTracked(Computer indexed data);
     event UserAdded(string indexed numSerie, address indexed userAddress);
     event UserDeleted(string indexed numSerie, address indexed userAddress);
     event AdminAdded(address indexed adminAddress);
@@ -54,16 +54,16 @@ contract ComputerTracker {
             computers.push(data);
             computerIndex[data.numSerie] = computers.length;
         }
-        emit ComputerTracked(data.numSerie, data.timestamp);
+        emit ComputerTracked(data);
     }
 
     /// @notice Obtiene todas las computadoras registradas
     /// @return Array con todas las computadoras registradas
     function getComputers() public view returns (Computer[] memory) {
-        require(
-            admins[msg.sender],
-           "User not allowed"
-        );
+        // require(
+        //     admins[msg.sender],
+        //    "User not allowed"
+        // );
         return (computers);
     }
 
@@ -148,5 +148,18 @@ contract ComputerTracker {
         );
         delete admins[adminAddress];
         emit AdminDeleted(adminAddress);
+    }
+
+    /// @notice Checks if an address is an admin
+    /// @return Boolean indicating if the address is an admin
+    function isAdmin() public view returns (bool) {
+        return admins[msg.sender];
+    }
+
+    /// @notice Checks if an address is a user for a specific serial number
+    /// @param numSerie Serial number to check
+    /// @return Boolean indicating if the address is a user for the given serial number
+    function isUser(string memory numSerie) public view returns (bool) {
+        return usuarios[msg.sender][numSerie];
     }
 }

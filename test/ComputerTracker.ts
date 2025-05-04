@@ -63,8 +63,7 @@ describe("ComputerTracker", () => {
     };
 
     await expect(contract.connect(user).trackComputer(computer))
-      .to.emit(contract, "ComputerTracked")
-      .withArgs("COMP-001", computer.timestamp);
+      .to.emit(contract, "ComputerTracked");
   });
 
   it("should not allow unauthorized user to track a computer", async () => {
@@ -79,7 +78,7 @@ describe("ComputerTracker", () => {
     ).to.be.revertedWith("User not allowed");
   });
 
-  it("should allow admin to get computer list", async () => {
+  it("should allow anyone to get computer list", async () => {
     await contract.putAdmin(admin.address);
     await contract.connect(admin).putUser({
       numSerie: "COMP-003",
@@ -94,15 +93,10 @@ describe("ComputerTracker", () => {
 
     await contract.connect(user).trackComputer(computer);
 
-    const result = await contract.connect(admin).getComputers();
+    const result = await contract.connect(user).getComputers();
     expect(result.length).to.equal(1);
     expect(result[0].numSerie).to.equal("COMP-003");
-  });
-
-  it("should not allow non-admin to get computer list", async () => {
-    await expect(contract.connect(user).getComputers()).to.be.revertedWith(
-      "User not allowed"
-    );
+    expect(result[0].blockdata).to.equal("Laptop Ryzen");
   });
 
   it("should allow owner to delete an admin", async () => {
@@ -127,5 +121,68 @@ describe("ComputerTracker", () => {
     )
       .to.emit(contract, "UserDeleted")
       .withArgs("COMP-004", user.address);
+  });
+
+  describe("Permission Checking Functions", () => {
+    it("should correctly identify admin status", async () => {
+      // Initially, admin should not be an admin
+      expect(await contract.connect(admin).isAdmin()).to.be.false;
+
+      // After adding admin, should return true
+      await contract.putAdmin(admin.address);
+      expect(await contract.connect(admin).isAdmin()).to.be.true;
+
+      // After removing admin, should return false
+      await contract.deleteAdmin(admin.address);
+      expect(await contract.connect(admin).isAdmin()).to.be.false;
+    });
+
+    it("should correctly identify user status", async () => {
+      await contract.putAdmin(admin.address);
+      const numSerie = "COMP-005";
+      const userData = {
+        numSerie: numSerie,
+        userAddress: user.address
+      };
+
+      // Initially, user should not have permission
+      expect(await contract.connect(user).isUser(numSerie)).to.be.false;
+
+      // After adding user, should return true
+      await contract.connect(admin).putUser(userData);
+      expect(await contract.connect(user).isUser(numSerie)).to.be.true;
+
+      // After removing user, should return false
+      await contract.connect(admin).deleteUser(userData);
+      expect(await contract.connect(user).isUser(numSerie)).to.be.false;
+    });
+
+    it("should handle multiple serial numbers for the same user", async () => {
+      await contract.putAdmin(admin.address);
+      const numSerie1 = "COMP-006";
+      const numSerie2 = "COMP-007";
+      const userData1 = {
+        numSerie: numSerie1,
+        userAddress: user.address
+      };
+      const userData2 = {
+        numSerie: numSerie2,
+        userAddress: user.address
+      };
+
+      // Add user for first serial number
+      await contract.connect(admin).putUser(userData1);
+
+      // Should be true for first serial number, false for second
+      expect(await contract.connect(user).isUser(numSerie1)).to.be.true;
+      expect(await contract.connect(user).isUser(numSerie2)).to.be.false;
+
+      // Add user for second serial number
+      await contract.connect(admin).putUser(userData2);
+
+      // Should be true for both serial numbers
+      expect(await contract.connect(user).isUser(numSerie1)).to.be.true;
+      expect(await contract.connect(user).isUser(numSerie2)).to.be.true;
+    });
   });
 });
