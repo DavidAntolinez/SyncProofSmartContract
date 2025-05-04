@@ -5,103 +5,127 @@ import { ComputerTracker } from "../typechain-types";
 describe("ComputerTracker", () => {
   let contract: ComputerTracker;
   let owner: any;
+  let admin: any;
   let user: any;
 
   beforeEach(async () => {
-    [owner, user] = await ethers.getSigners();
-    const Factory = await ethers.getContractFactory("ComputerTracker", owner);
+    [owner, admin, user] = await ethers.getSigners();
+    const Factory = await ethers.getContractFactory("ComputerTracker");
     contract = await Factory.deploy();
     await contract.waitForDeployment();
   });
 
-  it("should allow owner to add admin", async () => {
-    const tx = await contract.putAdmin("ADMIN123");
-    await tx.wait();
-
-    // Note: mapping is private, so we test access indirectly
-    const computers = await contract.connect(owner).getComputers("ADMIN123");
-    expect(computers.length).to.equal(0);
+  it("should allow the owner to add an admin", async () => {
+    await expect(contract.putAdmin(admin.address))
+      .to.emit(contract, "AdminAdded")
+      .withArgs(admin.address);
   });
 
-  it("should allow admin to add a user", async () => {
-    await contract.putAdmin("ADMIN123");
-
-    const adminStruct = {
-      numSerieUser: "USER001",
-      numSerieAdmin: "ADMIN123",
-    };
-
-    await contract.putUser(adminStruct);
-  });
-
-  it("should allow user to track a computer", async () => {
-    await contract.putAdmin("ADMIN123");
-
-    await contract.putUser({
-      numSerieUser: "USER001",
-      numSerieAdmin: "ADMIN123",
-    });
-
-    const data = {
-      blockdata: "Info del equipo",
-      numSerie: "USER001",
-      timestamp: Math.floor(Date.now() / 1000),
-    };
-
-    await contract.trackComputer(data);
-  });
-
-  it("should store and retrieve tracked computer by admin", async () => {
-    await contract.putAdmin("ADMIN123");
-
-    await contract.putUser({
-      numSerieUser: "USER001",
-      numSerieAdmin: "ADMIN123",
-    });
-
-    const data = {
-      blockdata: "Info 1",
-      numSerie: "USER001",
-      timestamp: Math.floor(Date.now() / 1000),
-    };
-
-    const tx = await contract.trackComputer(data);
-    tx.wait();
-
-    const computers = await contract.getComputers("ADMIN123");
-    expect(computers.length).to.equal(1);
-    expect(computers[0].blockdata).to.equal("Info 1");
-  });
-
-  it("should delete user if admin", async () => {
-    await contract.putAdmin("ADMIN123");
-
-    await contract.putUser({
-      numSerieUser: "USER001",
-      numSerieAdmin: "ADMIN123",
-    });
-
-    await contract.deleteUser({
-      numSerieUser: "USER001",
-      numSerieAdmin: "ADMIN123",
-    });
-
-    // Después de borrarlo, intentar trackear debe fallar
-    const data = {
-      blockdata: "Info",
-      numSerie: "USER001",
-      timestamp: Math.floor(Date.now() / 1000),
-    };
-
-    await expect(contract.trackComputer(data)).to.be.reverted;
-  });
-
-  it("should only allow owner to delete admin", async () => {
-    await contract.putAdmin("ADMIN123");
-
-    // No debería dejar que otro address borre
+  it("should not allow non-owner to add admin", async () => {
     await expect(
-      contract.connect(user).deleteAdmin("ADMIN123")
-    ).to.be.revertedWith("Only owner can delete admin");
+      contract.connect(user).putAdmin(user.address)
+    ).to.be.revertedWith("Only owner can add admin");
+  });
+
+  it("should allow an admin to add a user", async () => {
+    await contract.putAdmin(admin.address);
+
+    await expect(
+      contract.connect(admin).putUser({
+        numSerie: "COMP-001",
+        userAddress: user.address,
+      })
+    )
+      .to.emit(contract, "UserAdded")
+      .withArgs("COMP-001", user.address);
+  });
+
+  it("should not allow non-admin to add a user", async () => {
+    await expect(
+      contract.connect(user).putUser({
+        numSerie: "COMP-001",
+        userAddress: user.address,
+      })
+    ).to.be.revertedWith("User not allowed");
+  });
+
+  it("should allow a user to track a computer if authorized", async () => {
+    await contract.putAdmin(admin.address);
+    await contract.connect(admin).putUser({
+      numSerie: "COMP-001",
+      userAddress: user.address,
+    });
+
+    const computer = {
+      blockdata: "Laptop i5 16GB",
+      numSerie: "COMP-001",
+      timestamp: Math.floor(Date.now() / 1000),
+    };
+
+    await expect(contract.connect(user).trackComputer(computer))
+      .to.emit(contract, "ComputerTracked")
+      .withArgs("COMP-001", computer.timestamp);
+  });
+
+  it("should not allow unauthorized user to track a computer", async () => {
+    const computer = {
+      blockdata: "Laptop i7",
+      numSerie: "COMP-002",
+      timestamp: Math.floor(Date.now() / 1000),
+    };
+
+    await expect(
+      contract.connect(user).trackComputer(computer)
+    ).to.be.revertedWith("User not allowed");
+  });
+
+  it("should allow admin to get computer list", async () => {
+    await contract.putAdmin(admin.address);
+    await contract.connect(admin).putUser({
+      numSerie: "COMP-003",
+      userAddress: user.address,
+    });
+
+    const computer = {
+      blockdata: "Laptop Ryzen",
+      numSerie: "COMP-003",
+      timestamp: Math.floor(Date.now() / 1000),
+    };
+
+    await contract.connect(user).trackComputer(computer);
+
+    const result = await contract.connect(admin).getComputers();
+    expect(result.length).to.equal(1);
+    expect(result[0].numSerie).to.equal("COMP-003");
+  });
+
+  it("should not allow non-admin to get computer list", async () => {
+    await expect(contract.connect(user).getComputers()).to.be.revertedWith(
+      "User not allowed"
+    );
+  });
+
+  it("should allow owner to delete an admin", async () => {
+    await contract.putAdmin(admin.address);
+    await expect(contract.deleteAdmin(admin.address))
+      .to.emit(contract, "AdminDeleted")
+      .withArgs(admin.address);
+  });
+
+  it("should allow admin to delete a user", async () => {
+    await contract.putAdmin(admin.address);
+    await contract.connect(admin).putUser({
+      numSerie: "COMP-004",
+      userAddress: user.address,
+    });
+
+    await expect(
+      contract.connect(admin).deleteUser({
+        numSerie: "COMP-004",
+        userAddress: user.address,
+      })
+    )
+      .to.emit(contract, "UserDeleted")
+      .withArgs("COMP-004", user.address);
   });
 });

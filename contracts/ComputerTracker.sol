@@ -11,10 +11,10 @@ contract ComputerTracker {
 
     // Eventos
     event ComputerTracked(string indexed numSerie, uint256 timestamp);
-    event UserAdded(string indexed numSerieUser, string indexed numSerieAdmin);
-    event UserDeleted(string indexed numSerieUser, string indexed numSerieAdmin);
-    event AdminAdded(string indexed numSerie);
-    event AdminDeleted(string indexed numSerie);
+    event UserAdded(string indexed numSerie, address indexed userAddress);
+    event UserDeleted(string indexed numSerie, address indexed userAddress);
+    event AdminAdded(address indexed adminAddress);
+    event AdminDeleted(address indexed adminAddress);
 
     struct Computer {
         string blockdata;
@@ -22,15 +22,15 @@ contract ComputerTracker {
         uint256 timestamp;
     }
 
-    struct Admin {
-        string numSerieUser;
-        string numSerieAdmin;
+    struct User {
+        string numSerie;
+        address userAddress;
     }
 
     Computer[] public computers;
     address public owner;
-    mapping (string => bool) private usuarios;
-    mapping (string => bool) private admins;
+    mapping (address => mapping (string => bool)) usuarios;
+    mapping (address => bool) private admins;
     mapping(string => uint256) private computerIndex;
     
 
@@ -42,7 +42,7 @@ contract ComputerTracker {
     /// @param data Estructura con la información de la computadora
     function trackComputer(Computer memory data) public {
         require(
-           usuarios[data.numSerie],
+           usuarios[msg.sender][data.numSerie],
            "User not allowed"
         );
         // require(computers.length < MAX_COMPUTERS, "Maximum computers limit reached");
@@ -58,11 +58,10 @@ contract ComputerTracker {
     }
 
     /// @notice Obtiene todas las computadoras registradas
-    /// @param numSerie Número de serie del administrador
     /// @return Array con todas las computadoras registradas
-    function getComputers(string memory numSerie) public view returns (Computer[] memory) {
+    function getComputers() public view returns (Computer[] memory) {
         require(
-            admins[numSerie],
+            admins[msg.sender],
            "User not allowed"
         );
         return (computers);
@@ -109,45 +108,45 @@ contract ComputerTracker {
 
     /// @notice Registra un nuevo usuario
     /// @param data Estructura con la información del usuario y administrador
-    function putUser(Admin memory data) public {
+    function putUser(User memory data) public {
         require(
-           admins[data.numSerieAdmin],
+           admins[msg.sender],
            "User not allowed"
         );
-        usuarios[data.numSerieUser] = true;
-        emit UserAdded(data.numSerieUser, data.numSerieAdmin);
+        usuarios[data.userAddress][data.numSerie] = true;
+        emit UserAdded(data.numSerie,data.userAddress);
     }
 
     /// @notice Elimina un usuario
     /// @param data Estructura con la información del usuario y administrador
-    function deleteUser(Admin memory data) public {
+    function deleteUser(User memory data) public {
         require(
-           admins[data.numSerieAdmin],
+           admins[msg.sender],
            "User not allowed"
         );
-        delete usuarios[data.numSerieUser];
-        emit UserDeleted(data.numSerieUser, data.numSerieAdmin);
+        delete usuarios[data.userAddress][data.numSerie];
+        emit UserDeleted(data.numSerie, data.userAddress);
     }
 
     /// @notice Registra un nuevo administrador
-    /// @param numSerie Número de serie del administrador
-    function putAdmin(string memory numSerie) public {
+    /// @param adminAddress Número de serie del administrador
+    function putAdmin(address adminAddress) public {
         require(
             msg.sender == owner,
             "Only owner can add admin"
         );
-        admins[numSerie] = true;
-        emit AdminAdded(numSerie);
+        admins[adminAddress] = true;
+        emit AdminAdded(adminAddress);
     }
 
     /// @notice Elimina un administrador
-    /// @param numSerie Número de serie del administrador
-    function deleteAdmin(string memory numSerie) public {
+    /// @param adminAddress Número de serie del administrador
+    function deleteAdmin(address adminAddress) public {
         require(
             msg.sender == owner,
             "Only owner can delete admin"
         );
-        delete admins[numSerie];
-        emit AdminDeleted(numSerie);
+        delete admins[adminAddress];
+        emit AdminDeleted(adminAddress);
     }
 }
