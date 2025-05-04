@@ -1,7 +1,20 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
+/// @title ComputerTracker
+/// @notice Contrato para rastrear computadoras y gestionar usuarios y administradores
+/// @dev Implementa un sistema de permisos basado en owner y admins
 contract ComputerTracker {
+
+    // Constantes
+    // uint256 public constant MAX_COMPUTERS = 1000;
+
+    // Eventos
+    event ComputerTracked(string indexed numSerie, uint256 timestamp);
+    event UserAdded(string indexed numSerieUser, string indexed numSerieAdmin);
+    event UserDeleted(string indexed numSerieUser, string indexed numSerieAdmin);
+    event AdminAdded(string indexed numSerie);
+    event AdminDeleted(string indexed numSerie);
 
     struct Computer {
         string blockdata;
@@ -14,73 +27,127 @@ contract ComputerTracker {
         string numSerieAdmin;
     }
 
-    // struct Data {
-    //     string numSerie;
-    //     string blockdata;
-    //     uint256 timestamp;
-    // }
-
     Computer[] public computers;
     address public owner;
-    mapping (string => string) private usuarios;
-    mapping (string => string) private admins;
+    mapping (string => bool) private usuarios;
+    mapping (string => bool) private admins;
+    mapping(string => uint256) private computerIndex;
+    
 
     constructor(){
         owner = msg.sender;
     }
 
-
+    /// @notice Registra o actualiza la información de una computadora
+    /// @param data Estructura con la información de la computadora
     function trackComputer(Computer memory data) public {
         require(
-            keccak256(abi.encodePacked(usuarios[data.numSerie])) == keccak256(abi.encodePacked(data.numSerie))
+           usuarios[data.numSerie],
+           "User not allowed"
         );
-        bool flag = false;
-        for (uint i = 0; i < computers.length; i++) {
-            if(keccak256(abi.encodePacked(computers[i].numSerie)) == keccak256(abi.encodePacked(data.numSerie))){
-                computers[i] = data;
-                flag = true;
-                break;
-            }
-        }
-        if(!flag){
+        // require(computers.length < MAX_COMPUTERS, "Maximum computers limit reached");
+        
+        uint256 index = computerIndex[data.numSerie];
+        if (index > 0) {
+            computers[index - 1] = data;
+        } else {
             computers.push(data);
+            computerIndex[data.numSerie] = computers.length;
         }
+        emit ComputerTracked(data.numSerie, data.timestamp);
     }
 
+    /// @notice Obtiene todas las computadoras registradas
+    /// @param numSerie Número de serie del administrador
+    /// @return Array con todas las computadoras registradas
     function getComputers(string memory numSerie) public view returns (Computer[] memory) {
         require(
-            keccak256(abi.encodePacked(admins[numSerie])) == keccak256(abi.encodePacked(numSerie))
+            admins[numSerie],
+           "User not allowed"
         );
         return (computers);
     }
 
-    function putUser(Admin memory data)  public {
+    /// @notice Obtiene las computadoras dentro de un rango de tiempo específico
+    /// @param adminNumSerie Número de serie del administrador
+    /// @param startTime Tiempo de inicio del rango
+    /// @param endTime Tiempo de fin del rango
+    /// @return Array con las computadoras que coinciden con el rango de tiempo
+    // function getComputersByTimeRange(
+    //     string memory adminNumSerie,
+    //     uint256 startTime, 
+    //     uint256 endTime
+    // ) 
+    //     public 
+    //     view 
+    //     returns (Computer[] memory) 
+    // {
+    //     require(
+    //         admins[adminNumSerie],
+    //         "User not allowed"
+    //     );
+    //     require(startTime <= endTime, "Invalid time range");
+        
+    //     uint256 count = 0;
+    //     for(uint256 i = 0; i < computers.length; i++) {
+    //         if(computers[i].timestamp >= startTime && computers[i].timestamp <= endTime) {
+    //             count++;
+    //         }
+    //     }
+        
+    //     Computer[] memory result = new Computer[](count);
+    //     uint256 index = 0;
+    //     for(uint256 i = 0; i < computers.length; i++) {
+    //         if(computers[i].timestamp >= startTime && computers[i].timestamp <= endTime) {
+    //             result[index] = computers[i];
+    //             index++;
+    //         }
+    //     }
+        
+    //     return result;
+    // }
+
+    /// @notice Registra un nuevo usuario
+    /// @param data Estructura con la información del usuario y administrador
+    function putUser(Admin memory data) public {
         require(
-            keccak256(abi.encodePacked(admins[data.numSerieAdmin])) == keccak256(abi.encodePacked(data.numSerieAdmin))
+           admins[data.numSerieAdmin],
+           "User not allowed"
         );
-        usuarios[data.numSerieUser] = data.numSerieUser;
+        usuarios[data.numSerieUser] = true;
+        emit UserAdded(data.numSerieUser, data.numSerieAdmin);
     }
 
-    function deleteUser(Admin memory data)  public {
+    /// @notice Elimina un usuario
+    /// @param data Estructura con la información del usuario y administrador
+    function deleteUser(Admin memory data) public {
         require(
-            keccak256(abi.encodePacked(admins[data.numSerieAdmin])) == keccak256(abi.encodePacked(data.numSerieAdmin))
+           admins[data.numSerieAdmin],
+           "User not allowed"
         );
         delete usuarios[data.numSerieUser];
+        emit UserDeleted(data.numSerieUser, data.numSerieAdmin);
     }
 
-    function putAdmin(string memory numSerie)  public {
+    /// @notice Registra un nuevo administrador
+    /// @param numSerie Número de serie del administrador
+    function putAdmin(string memory numSerie) public {
         require(
-            msg.sender == owner
+            msg.sender == owner,
+            "Only owner can add admin"
         );
-        admins[numSerie] = numSerie;
+        admins[numSerie] = true;
+        emit AdminAdded(numSerie);
     }
 
-    function deleteAdmin(string memory numSerie)  public {
+    /// @notice Elimina un administrador
+    /// @param numSerie Número de serie del administrador
+    function deleteAdmin(string memory numSerie) public {
         require(
             msg.sender == owner,
             "Only owner can delete admin"
         );
         delete admins[numSerie];
+        emit AdminDeleted(numSerie);
     }
-
 }
