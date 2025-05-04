@@ -1,13 +1,111 @@
-# Sample Hardhat Project
+# ComputerTracker Smart Contract
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+## Overview
+The ComputerTracker is a Solidity smart contract designed to track computers and manage users and administrators in a blockchain environment. It implements a permission-based system with owner and admin roles.
 
-Try running some of the following tasks:
+## Features
+- Track and update computer information
+- User management (add/delete users)
+- Administrator management (add/delete admins)
+- Permission-based access control
+- Event logging for all major operations
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.ts
+## Contract Structure
+
+### Data Structures
+- `Computer`: Stores computer information
+  - `blockdata`: String containing block data
+  - `numSerie`: String containing serial number
+  - `timestamp`: uint256 timestamp of tracking
+
+- `User`: Stores user information
+  - `numSerie`: String containing serial number
+  - `userAddress`: Address of the user
+
+### State Variables
+- `computers`: Array of Computer structs
+- `owner`: Address of contract owner
+- `usuarios`: Mapping of user addresses to serial numbers
+- `admins`: Mapping of admin addresses to boolean values
+- `computerIndex`: Mapping of serial numbers to computer indices
+
+### Events
+- `ComputerTracked`: Emitted when a computer is tracked/updated
+- `UserAdded`: Emitted when a new user is added
+- `UserDeleted`: Emitted when a user is deleted
+- `AdminAdded`: Emitted when a new admin is added
+- `AdminDeleted`: Emitted when an admin is deleted
+
+## Functions
+
+### Computer Management
+- `trackComputer(Computer memory data)`: 
+  - Registers or updates computer information
+  - Requires user permission for the specific serial number
+  - Emits ComputerTracked event
+
+- `getComputers()`: 
+  - Returns all registered computers
+  - Requires admin permission
+
+### User Management
+- `putUser(User memory data)`:
+  - Registers a new user
+  - Requires admin permission
+  - Emits UserAdded event
+
+- `deleteUser(User memory data)`:
+  - Deletes a user
+  - Requires admin permission
+  - Emits UserDeleted event
+
+### Admin Management
+- `putAdmin(address adminAddress)`:
+  - Registers a new admin
+  - Requires owner permission
+  - Emits AdminAdded event
+
+- `deleteAdmin(address adminAddress)`:
+  - Deletes an admin
+  - Requires owner permission
+  - Emits AdminDeleted event
+
+## Access Control
+- Owner: Has full control over the contract and can manage admins
+- Admins: Can manage users and view all computers
+- Users: Can track computers they have permission for
+
+## Security Features
+- Permission-based access control
+- Owner-only admin management
+- Admin-only user management
+- User-specific computer tracking permissions
+
+## Usage Example
+```solidity
+// Deploy contract
+ComputerTracker tracker = new ComputerTracker();
+
+// Add admin (only owner)
+tracker.putAdmin(adminAddress);
+
+// Add user (only admin)
+tracker.putUser(User({
+    numSerie: "ABC123",
+    userAddress: userAddress
+}));
+
+// Track computer (only authorized user)
+tracker.trackComputer(Computer({
+    blockdata: "some data",
+    numSerie: "ABC123",
+    timestamp: block.timestamp
+}));
 ```
+
+## Requirements
+- Solidity ^0.8.0
+- EVM compatible blockchain
+
+## License
+UNLICENSED
